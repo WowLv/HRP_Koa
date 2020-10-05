@@ -24,13 +24,15 @@ var getPersonFile = async ctx => {
         }else {
             ctx.body = new Respond(true, 200, '查询失败')
         }
+    }else {
+        ctx.body = new Respond(true, 200, '查询失败')
     }
 }
 
 var memberFile = async ctx => {
     let {page} = ctx.query
     page = (page - 1) * 10 || 0
-    let sql = `select fid, name, sex, age, phone, email, file_table.positionId, positionName from file_table, position_table where file_table.positionId = position_table.positionId`
+    let sql = `select fid, name, sex, age, phone, email, file_table.positionId, positionName from file_table, position_table where file_table.positionId = position_table.positionId limit ${page},10`
     let sumSql = `select count(*) as sum from file_table`
 
     let resRow = await query(sql, [])
@@ -69,7 +71,7 @@ var memberRegister = async ctx => {
 }
 
 var getAllMenberApply = async ctx => {
-    let sql = `select mid, applicant, operator, memberapply_table.applyTypeId, reason, memberapply_table.modeId, createTime, updateTime, memberapply_table.positionId, positionName, applyType, mode from memberapply_table, memberapply_type_table, apply_mode_table, position_table where memberapply_table.applyTypeId = memberapply_type_table.applyTypeId and memberapply_table.modeId = apply_mode_table.modeId and memberapply_table.positionId = position_table.positionId`
+    let sql = `select mid, applicant, fid, memberapply_table.applyTypeId, reason, memberapply_table.modeId, createTime, updateTime, memberapply_table.positionId, positionName, applyType, applyMode from memberapply_table, memberapply_type_table, apply_mode_table, position_table where memberapply_table.applyTypeId = memberapply_type_table.applyTypeId and memberapply_table.modeId = apply_mode_table.modeId and memberapply_table.positionId = position_table.positionId`
     let sqlArr = []
     let row = await query(sql, sqlArr)
     row.forEach(item => {
@@ -79,11 +81,10 @@ var getAllMenberApply = async ctx => {
     ctx.body = new Respond(true, 200, '查询成功', row)
 }
 
-var entryApply = async ctx => {
-    let { applicant, operator, reason, applyTypeId, modeId, applyTime, positionId } = ctx.request.body
-    let sql = `insert into memberapply_table (applicant, operator, reason, applyTypeId, modeId, createTime, updateTime, positionId) values (?,?,?,?,?,?,?,?)`
-    let sqlArr = [applicant, operator, reason, applyTypeId, modeId, new Date(applyTime), new Date(), positionId]
-
+var ERApply = async ctx => {
+    let { applicant, fid, reason, applyTypeId, modeId, applyTime, positionId } = ctx.request.body
+    let sql = `insert into memberapply_table (applicant, fid, reason, applyTypeId, modeId, createTime, updateTime, positionId) values (?,?,?,?,?,?,?,?)`
+    let sqlArr = [applicant, fid, reason, applyTypeId, modeId, new Date(applyTime), new Date(), positionId]
     let row = await query(sql, sqlArr)
     if(row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '申请成功，请等待审核')
@@ -116,12 +117,40 @@ var rejectMember = async ctx => {
     }
 }
 
+var checkResign = async ctx => {
+    let { fid } = ctx.query
+    let sql = `select applyTypeId, modeId from memberapply_table where fid = ? and applyTypeId = 2`
+    let sqlArr = [fid]
+
+    let row = await query(sql, sqlArr)
+    if(row.length) {
+        ctx.body = new Respond(true, 200, "查询成功", row[0])
+    }else {
+        ctx.body = new Respond(false, 200, "此ID无记录")
+    }
+}
+
+var searchFile = async ctx => {
+    let {user} = ctx.request.body
+    let sql = `select fid, name, sex, age, phone, email, file_table.positionId, positionName from file_table, position_table where file_table.positionId = position_table.positionId and (file_table.name=? or file_table.fid=?)`
+    let sqlArr = [user, user]
+    let row = await query(sql, sqlArr)
+    if(row.length) {
+        ctx.body = new Respond(true, 200, '查询成功', {data: row, sum: row.length})
+    }else {
+        ctx.body = new Respond(false, 200, '查询无结果')
+    }
+    
+}
+
 module.exports = {
     getPersonFile,
     memberFile,
     memberRegister,
     getAllMenberApply,
-    entryApply,
+    ERApply,
     passMember,
-    rejectMember
+    rejectMember,
+    checkResign,
+    searchFile
 }

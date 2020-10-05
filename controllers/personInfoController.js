@@ -3,6 +3,7 @@ var { LogCheck } = require('./loginController')
 var { Respond } = require('../util/class')
 const jwt = require('jsonwebtoken')
 
+//!! uid
 var getInfo = async ctx => {
     let {Uid} = ctx.query
     let sql = `select uid, username, sex, age, phone, email, user_table.powerId, power_table.powerName as power from power_table, user_table where power_table.powerId = user_table.powerId and user_table.uid=?`

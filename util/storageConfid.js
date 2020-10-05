@@ -2,7 +2,7 @@ var multer = require('koa-multer')
 
 var storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, `public/uploads/${req.body.mode}/`)
+        cb(null, `public/uploads/${req.body.workLoadType}/`)
     },
     filename: function (req, file, cb) {
         let nameList = file.originalname.split('.')

@@ -92,7 +92,7 @@ var Register = async ctx => {
         let sqlArr = [uid, username, sex, age, pwd, phone, email, createTime, powerId]
         let row = await query(sql, sqlArr)
         if(row.affectedRows > 0) {
-            ctx.body = new Respond(true, 200, `新用户${username}注册成功`)
+            ctx.body = new Respond(true, 200, `新用户'${username}'注册成功`)
         }else {
             ctx.body = new Respond(false, 200, '注册失败')
         }
