@@ -4,10 +4,10 @@ var { Respond } = require('../util/class')
 var send = require('koa-send')
 
 var uploadScientificLoad = async ctx => {
-    let { fid, workLoadId, workLoadTypeId, modeId } = ctx.req.body
+    let { fid, workLoadId, workLoadTypeId, modeId, extra } = ctx.req.body
     let { originalname, destination, filename } = ctx.req.file
-    let sql = `insert into workLoad_storage_table (originalname, destination, filename, workLoadTypeId, fid, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?)`
-    let sqlArr = [originalname, destination, filename, workLoadTypeId, fid, workLoadId, modeId, new Date()]
+    let sql = `insert into workLoad_storage_table (originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?,?)`
+    let sqlArr = [originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, new Date()]
     let row = await query(sql, sqlArr)
     if(row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '上传成功')
@@ -36,9 +36,18 @@ var publicLoadSummary = async ctx => {
 }
 
 var scientLoadSummary = async ctx => {
-    let sql = `select scientload_table.*, scientload_type_table.scientLoadType from scientload_table, scientload_type_table where scientload_table.scientTypeId = scientload_type_table.scientTypeId`
-    let row = await query(sql, [])
-    ctx.body = new Respond(true, 200, '查询成功', row)
+    let sumSql = `select scientload_table.*, scientload_type_table.scientLoadType from scientload_table, scientload_type_table where scientload_table.scientTypeId = scientload_type_table.scientTypeId`
+    let extraSql = `select workLoadId from scientload_extra_table`
+    let extraMeasureSql = `select * from extraMeasure_table`
+    let scientList = await query(sumSql, [])
+    let extraRow = await query(extraSql, [])
+    let extraMeasureList = await query(extraMeasureSql, [])
+    
+    let extraList = []
+    extraRow.map(item => {
+        extraList.push(item.workLoadId)
+    })
+    ctx.body = new Respond(true, 200, '查询成功', { scientList, extraList, extraMeasureList})
 }
 
 var workLoadManage = async ctx => {

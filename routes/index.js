@@ -24,11 +24,12 @@ router.get('/personFile', memberFile.getPersonFile) //√
 router.get('/memberFile', memberFile.memberFile)    //√
 router.post('/m_register', memberFile.memberRegister)
 router.get('/allMemberApply', memberFile.getAllMenberApply)
+router.get('/allMemberFinished', memberFile.getAllMenberApplyFinished)
 router.post('/memberApply', memberFile.ERApply)
-router.post('/passMember', memberFile.passMember)
-router.post('/rejectMember', memberFile.rejectMember)
+router.post('/auditMember', memberFile.auditMember)
 router.get('/checkResign', memberFile.checkResign)
-router.post('/searchFile', memberFile.searchFile)
+router.post('/searchMember', memberFile.searchMember)
+router.get('/positionList', memberFile.getPositionList)
 
 router.post('/scientLoad', upload.single('file'), workLoad.uploadScientificLoad)
 router.post('/publicLoad', upload.single('file'), workLoad.uploadPublicLoad)

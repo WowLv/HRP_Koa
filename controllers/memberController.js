@@ -12,7 +12,7 @@ var getPersonFile = async ctx => {
     let resSql = ''
     if(checkRow.length) {
         if(checkRow[0].positionId === 4) {
-            resSql = `select file_table.fid, name, sex, age, phone, email, file_table.positionId, positionName, station_table.stationId, stationName, station_file_table.level from file_table, position_table, station_table, station_file_table where file_table.positionId = position_table.positionId and file_table.fid = station_file_table.fid and station_file_table.stationId = station_table.stationId and file_table.fid = ?`
+            resSql = `select file_table.fid, name, sex, age, phone, email, file_table.positionId, positionName, station_table.stationId, stationName, station_file_table.levelId, levelName from file_table, level_table, position_table, station_table, station_file_table where file_table.positionId = position_table.positionId and level_table.levelId = station_file_table.levelId and file_table.fid = station_file_table.fid and station_file_table.stationId = station_table.stationId and file_table.fid = ?`
         }else if(checkRow[0].positionId === 3){
             resSql = `select file_table.fid, name, sex, age, phone, email, file_table.positionId, positionName, section_table.sectionId, sectionName from file_table, position_table, section_table, section_file_table where file_table.positionId = position_table.positionId and file_table.fid = section_file_table.fid and section_file_table.sectionId = section_table.sectionId and file_table.fid = ?`
         }else {
@@ -41,14 +41,14 @@ var memberFile = async ctx => {
 }
 
 var memberRegister = async ctx => {
-    let { name, sex, age, phone, email, stationId, level, positionId, sectionId } = ctx.request.body
+    let { name, sex, age, phone, email, stationId, levelId, positionId, sectionId } = ctx.request.body
     let sql = `insert into file_table (name, sex, age, phone, email, positionId, updateTime) values (?,?,?,?,?,?,?)`
     let sqlArr = [name, sex, age, phone, email, positionId, new Date()]
     let fileRow = await query(sql, sqlArr)
     if(fileRow.affectedRows > 0) {
         if(stationId) {
-            let stationSql = `insert into station_file_table (fid, stationId, level, updateTime) values (?,?,?,?)`
-            let stationSqlArr = [fileRow.insertId, stationId, level, new Date()]
+            let stationSql = `insert into station_file_table (fid, stationId, levelId, updateTime) values (?,?,?,?)`
+            let stationSqlArr = [fileRow.insertId, stationId, levelId, new Date()]
             let stationRow = await query(stationSql, stationSqlArr)
             if(stationRow.affectedRows > 0) {
                 ctx.body = new Respond(true, 200, `注册成功，职工号${fileRow.insertId}`)
@@ -71,20 +71,40 @@ var memberRegister = async ctx => {
 }
 
 var getAllMenberApply = async ctx => {
-    let sql = `select mid, applicant, fid, memberapply_table.applyTypeId, reason, memberapply_table.modeId, createTime, updateTime, memberapply_table.positionId, positionName, applyType, applyMode from memberapply_table, memberapply_type_table, apply_mode_table, position_table where memberapply_table.applyTypeId = memberapply_type_table.applyTypeId and memberapply_table.modeId = apply_mode_table.modeId and memberapply_table.positionId = position_table.positionId`
-    let sqlArr = []
+    let {page} = ctx.query
+    page = (page - 1) * 8 || 0
+    let sumSql = `select count(*) as sum from memberapply_table where modeId = 0`
+    let sql = `select mid, applicant, fid, memberapply_table.applyTypeId, reason, memberapply_table.modeId, applyTime, updateTime, memberapply_table.positionId, positionName, applyType, applyMode from memberapply_table, memberapply_type_table, apply_mode_table, position_table where memberapply_table.applyTypeId = memberapply_type_table.applyTypeId and memberapply_table.modeId = apply_mode_table.modeId and memberapply_table.positionId = position_table.positionId and apply_mode_table.modeId = ? limit ${page},8`
+    let sqlArr = [0]
+    let sumRow = await query(sumSql, [])
     let row = await query(sql, sqlArr)
     row.forEach(item => {
-        item.createTime = formatDate(item.createTime, 'Y:M:D')
+        item.applyTime = formatDate(item.applyTime, 'Y:M:D')
         item.updateTime = formatDate(item.updateTime, 'Y:M:D')
     })
-    ctx.body = new Respond(true, 200, '查询成功', row)
+    ctx.body = new Respond(true, 200, '查询成功', { data: row, sum: sumRow[0].sum })
+}
+
+var getAllMenberApplyFinished = async ctx => {
+    let {page} = ctx.query
+    page = (page - 1) * 8 || 0
+    let sumSql = `select count(*) as sum from memberapply_table where modeId = 1 or modeId = 2`
+    let sql = `select mid, applicant, fid, memberapply_table.applyTypeId, reason, memberapply_table.modeId, applyTime, updateTime, memberapply_table.positionId, positionName, applyType, applyMode from memberapply_table, memberapply_type_table, apply_mode_table, position_table where memberapply_table.applyTypeId = memberapply_type_table.applyTypeId and memberapply_table.modeId = apply_mode_table.modeId and memberapply_table.positionId = position_table.positionId and (apply_mode_table.modeId = ? or apply_mode_table.modeId = ?) limit ${page},8`
+    let sqlArr = [1,2]
+
+    let sumRow = await query(sumSql, [])
+    let row = await query(sql, sqlArr)
+    row.forEach(item => {
+        item.applyTime = formatDate(item.applyTime, 'Y:M:D')
+        item.updateTime = formatDate(item.updateTime, 'Y:M:D')
+    })
+    ctx.body = new Respond(true, 200, '查询成功', { data: row, sum: sumRow[0].sum })
 }
 
 var ERApply = async ctx => {
     let { applicant, fid, reason, applyTypeId, modeId, applyTime, positionId } = ctx.request.body
-    let sql = `insert into memberapply_table (applicant, fid, reason, applyTypeId, modeId, createTime, updateTime, positionId) values (?,?,?,?,?,?,?,?)`
-    let sqlArr = [applicant, fid, reason, applyTypeId, modeId, new Date(applyTime), new Date(), positionId]
+    let sql = `insert into memberapply_table (applicant, fid, reason, applyTypeId, modeId, applyTime, createTime, updateTime, positionId) values (?,?,?,?,?,?,?,?,?)`
+    let sqlArr = [applicant, fid, reason, applyTypeId, modeId, new Date(applyTime), new Date(), new Date(), positionId]
     let row = await query(sql, sqlArr)
     if(row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '申请成功，请等待审核')
@@ -93,22 +113,10 @@ var ERApply = async ctx => {
     }
 }
 
-var passMember = async ctx => {
-    let { mid } = ctx.request.body
+var auditMember = async ctx => {
+    let { mid, modeId } = ctx.request.body
     let sql = `UPDATE memberapply_table set modeId=?, updateTime=? where mid=?`
-    let sqlArr = [1,new Date(), mid]
-    let row = await query(sql, sqlArr)
-    if(row.affectedRows > 0) {
-        ctx.body = new Respond(true, 200, '审批成功')
-    }else {
-        ctx.body = new Respond(false, 200, '审批失败，请重试')
-    }
-}
-
-var rejectMember = async ctx => {
-    let { mid } = ctx.request.body
-    let sql = `UPDATE memberapply_table set modeId=?, updateTime=? where mid=?`
-    let sqlArr = [2,new Date(), mid]
+    let sqlArr = [modeId, new Date(), mid]
     let row = await query(sql, sqlArr)
     if(row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '审批成功')
@@ -130,7 +138,7 @@ var checkResign = async ctx => {
     }
 }
 
-var searchFile = async ctx => {
+var searchMember = async ctx => {
     let {user} = ctx.request.body
     let sql = `select fid, name, sex, age, phone, email, file_table.positionId, positionName from file_table, position_table where file_table.positionId = position_table.positionId and (file_table.name=? or file_table.fid=?)`
     let sqlArr = [user, user]
@@ -143,14 +151,28 @@ var searchFile = async ctx => {
     
 }
 
+var getPositionList = async ctx => {
+    let levelSql = `select * from level_table`
+    let stationSql = `select * from station_table`
+    let positionSql = `select * from position_table`
+    let sectionSql = `select * from section_table`
+    let levelRow = await query(levelSql, [])
+    let stationRow = await query(stationSql, [])
+    let positionRow = await query(positionSql, [])
+    let sectionRow = await query(sectionSql, [])
+
+    ctx.body = new Respond(true, 200, '查询成功', {levelRow, stationRow, positionRow, sectionRow})
+}
+
 module.exports = {
     getPersonFile,
     memberFile,
     memberRegister,
     getAllMenberApply,
     ERApply,
-    passMember,
-    rejectMember,
+    auditMember,
     checkResign,
-    searchFile
+    searchMember,
+    getPositionList,
+    getAllMenberApplyFinished
 }
