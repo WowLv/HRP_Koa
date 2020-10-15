@@ -4,11 +4,14 @@ var { Respond } = require('../util/class')
 var send = require('koa-send')
 
 var uploadScientificLoad = async ctx => {
-    let { fid, workLoadId, workLoadTypeId, modeId, extra } = ctx.req.body
-    let { originalname, destination, filename } = ctx.req.file
-    let sql = `insert into workLoad_storage_table (originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?,?)`
-    let sqlArr = [originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, new Date()]
-    let row = await query(sql, sqlArr)
+    
+    let { fid, workLoadId, workLoadTypeId, modeId, extra } = ctx.req.body,
+        { originalname, destination, filename } = ctx.req.file,
+        initIdSql = `select count(*) as length from workLoad_storage_table`
+        initIdRow = await query(initIdSql, [])
+        sql = `insert into workLoad_storage_table (storageId, originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?,?,?)`,
+        sqlArr = [initIdRow[0].length, originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, new Date()],
+        row = await query(sql, sqlArr)
     if(row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '上传成功')
     }else {
@@ -17,11 +20,13 @@ var uploadScientificLoad = async ctx => {
 }
 
 var uploadPublicLoad = async ctx => {
-    let { fid, workLoadId, workLoadTypeId, modeId } = ctx.req.body
-    let { originalname, destination, filename } = ctx.req.file
-    let sql = `insert into workLoad_storage_table (originalname, destination, filename, workLoadTypeId, fid, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?)`
-    let sqlArr = [originalname, destination, filename, workLoadTypeId, fid, workLoadId, modeId, new Date()]
-    let row = await query(sql, sqlArr)
+    let { fid, workLoadId, workLoadTypeId, modeId, extra } = ctx.req.body,
+        { originalname, destination, filename } = ctx.req.file,
+        initIdSql = `select count(*) as length from workLoad_storage_table`
+        initIdRow = await query(initIdSql, [])
+        sql = `insert into workLoad_storage_table (storageId, originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?,?,?)`,
+        sqlArr = [initIdRow[0].length, originalname, destination, filename, workLoadTypeId, fid, extra, workLoadId, modeId, new Date()],
+        row = await query(sql, sqlArr)
     if(row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '上传成功')
     }else {
@@ -51,15 +56,19 @@ var scientLoadSummary = async ctx => {
 }
 
 var workLoadManage = async ctx => {
-    let scientSql = `select workload_storage_table.*, name, workLoadType, applyMode, workLoad from workload_storage_table, file_table, workload_type_table, apply_mode_table, scientload_table where workload_storage_table.workLoadTypeId= workload_type_table.workLoadTypeId and workload_storage_table.fid = file_table.fid and workload_storage_table.modeId = apply_mode_table.modeId and workload_storage_table.workLoadId = scientload_table.workLoadId and workload_storage_table.workLoadTypeId = 1`
-    let publicSql = `select workload_storage_table.*, name, workLoadType, applyMode, workLoad from workload_storage_table, file_table, workload_type_table, apply_mode_table, publicLoad_table where workload_storage_table.workLoadTypeId= workload_type_table.workLoadTypeId and workload_storage_table.fid = file_table.fid and workload_storage_table.modeId = apply_mode_table.modeId and workload_storage_table.workLoadId = publicLoad_table.workLoadId and workload_storage_table.workLoadTypeId = 2`
-    let scientRow = await query(scientSql, [])
-    let publicRow = await query(publicSql, [])
-    let res = [...scientRow, ...publicRow]
+    let {page} = ctx.query
+    page = page * 10
+    let scientSql = `select workload_storage_table.*, name, workLoadType, applyMode, workLoad from workload_storage_table, file_table, workload_type_table, apply_mode_table, scientload_table where workload_storage_table.workLoadTypeId = workload_type_table.workLoadTypeId and workload_storage_table.fid = file_table.fid and workload_storage_table.modeId = apply_mode_table.modeId and workload_storage_table.workLoadId = scientload_table.workLoadId and workload_storage_table.workLoadTypeId = 1 and storageId < ${page}`,
+        publicSql = `select workload_storage_table.*, name, workLoadType, applyMode, workLoad from workload_storage_table, file_table, workload_type_table, apply_mode_table, publicLoad_table where workload_storage_table.workLoadTypeId = workload_type_table.workLoadTypeId and workload_storage_table.fid = file_table.fid and workload_storage_table.modeId = apply_mode_table.modeId and workload_storage_table.workLoadId = publicLoad_table.workLoadId and workload_storage_table.workLoadTypeId = 2 and storageId < ${page}`,
+        scientRow = await query(scientSql, []),
+        publicRow = await query(publicSql, []),
+        res = [...scientRow, ...publicRow],
+        sumSql = `select count(*) as sum from workload_storage_table`,
+        sumRow = await query(sumSql, [])
     res.forEach(item => {
         item.uploadTime = formatDate(item.uploadTime, 'Y:M:D')
     })
-    ctx.body = new Respond(true, 200, '查询成功', res)
+    ctx.body = new Respond(true, 200, '查询成功', { data: res, sum: sumRow[0].sum })
 }
 
 var downloadWorkLoad = async ctx => {
