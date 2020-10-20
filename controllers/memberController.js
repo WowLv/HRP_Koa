@@ -8,18 +8,25 @@ var getPersonFile = async ctx => {
         sql = `select positionId from file_table where fid=?`,
         sqlArr = [fid],
         checkRow = await query(sql, sqlArr),
-        resSql = ''
+        resSql = ``,
+        checkLoadSql = ``
     if(checkRow.length) {
         if(checkRow[0].positionId === 4) {
-            resSql = `select file_table.fid, teachLoad, name, sex, age, phone, email, file_table.positionId, positionName, station_table.stationId, stationName, station_file_table.levelId, levelName from file_table, teachLoad_record_table, level_table, position_table, station_table, station_file_table where file_table.positionId = position_table.positionId and file_table.fid = teachLoad_record_table.fid and level_table.levelId = station_file_table.levelId and file_table.fid = station_file_table.fid and station_file_table.stationId = station_table.stationId and file_table.fid = ?`
+            resSql = `select file_table.fid, teachLoad, name, sex, age, phone, email, file_table.positionId, positionName, station_table.stationId, stationName, station_file_table.levelId, levelName from file_table, gpa_record_table, level_table, position_table, station_table, station_file_table where file_table.positionId = position_table.positionId and file_table.fid = gpa_record_table.fid and level_table.levelId = station_file_table.levelId and file_table.fid = station_file_table.fid and station_file_table.stationId = station_table.stationId and file_table.fid = ?`
+            checkLoadSql = `select a.workLoadId, a.workLoadTypeId, uploadTime, b.workLoad, c.workLoadType from workload_storage_table a, scientload_table b, workload_type_table c where a.workLoadId = b.workLoadId and a.workLoadTypeId = c.workLoadTypeId and modeId = 1 and fid = ?`
         }else if(checkRow[0].positionId === 3){
             resSql = `select file_table.fid, name, sex, age, phone, email, file_table.positionId, positionName, section_table.sectionId, sectionName from file_table, position_table, section_table, section_file_table where file_table.positionId = position_table.positionId and file_table.fid = section_file_table.fid and section_file_table.sectionId = section_table.sectionId and file_table.fid = ?`
         }else {
             resSql = `select fid, name, sex, age, phone, email, file_table.positionId, positionName from file_table, position_table where file_table.positionId = position_table.positionId and fid = ?`
         }
-        let resRow = await query(resSql, sqlArr)
+        let resRow = await query(resSql, sqlArr),
+            checkLoadRow = await query(checkLoadSql, sqlArr)
+
+        checkLoadRow.forEach(item => {
+            item.uploadTime = formatDate(item.uploadTime, 'Y:M:D')
+        })
         if(resRow.length) {
-            ctx.body = new Respond(true, 200, '查询成功', resRow[0])
+            ctx.body = new Respond(true, 200, '查询成功', Object.assign(resRow[0], { workLoadList: checkLoadRow }))
         }else {
             let lackSql = `select * from file_table where fid = ?`
                 lackSqlArr = [fid]
@@ -69,7 +76,7 @@ var memberRegister = async ctx => {
                 let checkLoadSql = `select teachLoadTarget from performance_target_table where levelId = ? and stationId = ?`,
                     checkLoadSqlArr = [levelId, stationId],
                     teachLoadTargetRow = await query(checkLoadSql, checkLoadSqlArr),
-                    initLoadSql = `insert into teachload_record_table (teachLoad, fid, updateTime) values (?,?,?)`,
+                    initLoadSql = `insert into gpa_record_table (teachLoad, fid, updateTime) values (?,?,?)`,
                     initLoadSqlArr = [teachLoadTargetRow[0].teachLoadTarget, fileRow.insertId, new Date()],
                     initLoadRes = await query(initLoadSql, initLoadSqlArr)
                 if(initLoadRes.affectedRows > 0) {

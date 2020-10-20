@@ -33,12 +33,14 @@ router.get('/checkResign', memberFile.checkResign)
 router.post('/searchMember', memberFile.searchMember)       //√
 router.get('/positionList', memberFile.getPositionList)     //√
 
-router.post('/scientLoad', upload.single('file'), workLoad.uploadScientificLoad)    //√
-router.post('/publicLoad', upload.single('file'), workLoad.uploadPublicLoad)    //√
-router.get('/publicLoad_sum', workLoad.publicLoadSummary)   //√
-router.get('/scientLoad_sum', workLoad.scientLoadSummary)   //√
-router.get('/load_manage', workLoad.workLoadManage)   //√
+router.post('/scientLoad', upload.single('file'), workLoad.uploadScientificLoad)    //√  !!
+router.post('/publicLoad', upload.single('file'), workLoad.uploadPublicLoad)    //√   !!
+router.get('/publicLoad_sum', workLoad.publicLoadSummary)   //√  !!
+router.get('/scientLoad_sum', workLoad.scientLoadSummary)   //√   !!
+router.get('/load_manage', workLoad.workLoadManage)   //√ !!
 router.get('/download_load', workLoad.downloadWorkLoad)   //√
+router.get('/measure', workLoad.getMeasure)
+router.post('/audit_workLoad', workLoad.auditWorkLoad)
 
 router.get('/notice', notification.notice)
 

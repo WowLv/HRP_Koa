@@ -1,6 +1,7 @@
 var query = require('../util/dbconfig');
 var { formatDate } = require('../util/format')
 var { Respond } = require('../util/class')
+var { auditStationTransferApply, auditPositionTransferApply } = require('../util/function')
 
 var posTransferApply = async ctx => {
     let {fid, transferTypeId, oldPositionId, positionId, oldStationId, stationId, oldLevelId, levelId, modeId, reason, applyTime} = ctx.request.body;
@@ -28,7 +29,7 @@ var posTransferApply = async ctx => {
 
 var getPosTransferApply = async ctx => {
     let {mode, page} = ctx.query
-    page = (page - 1) * 10 || 0
+    page = (page - 1) * 8 || 0
     let sql = ''
         sumSql = ''
     if(mode === 'apply') {
@@ -80,80 +81,10 @@ var getPosTransferApply = async ctx => {
     ctx.body = new Respond(true, 200, '查询成功', {data: row, sum: sumRow[0].sum})
 }
 
-async function updateModeId(modeId, transferId) {
-    let updateModeSql = `update pos_transfer_table set modeId = ? where transferId = ?`,
-        updateModeSqlArr = [modeId, transferId]
-        updateModeRes = await query(updateModeSql, updateModeSqlArr)
-    if(updateModeRes.affectedRows > 0) {
-        return new Respond(true, 200, '审核成功，信息已修改')
-    }else {
-        return new Respond(false, 200, '审核失败，请重试')
-    }
-}
-
-async function updatePositionId(ctx) {
-    let { positionId, fid, modeId, transferId } = ctx.request.body
-        fileSql = `update file_table set positionId = ? where fid = ?`
-        fileSqlArr = [positionId, fid]
-        transferSql = `update pos_transfer_table set modeId = ? where transferId = ?`
-        transferSqlArr = [modeId, transferId]
-        fileRes = await query(fileSql, fileSqlArr)
-        transferRes = await query(transferSql, transferSqlArr)
-    if(fileRes.affectedRows > 0 && transferRes.affectedRows > 0) {
-        return new Respond(true, 200, '审核成功，信息已修改')
-    }else {
-        return new Respond(false, 200, '审核失败，请重试')
-    }
-}
-
-async function auditPositionTransferApply(ctx) {
-    //update update file_table.position
-    //oldPositionId !== positionId && oldPosition === 4   ---> delete teachLoad_record_table, station_file_table
-    //oldPositionId !== positionId && oldPosition === 3   ---> delete section_file_table
-    let { fid, oldPositionId, positionId } = ctx.request.body
-    if(oldPositionId !== positionId && oldPositionId === 4) {
-        let delLoadSql = `delete from teachLoad_record_table where fid = ?`
-            delStationSql = `delete from station_file_table where fid = ?`
-            delSqlArr = [fid]
-            delLoadRes = await query(delLoadSql, delSqlArr)
-            delStationRes = await query(delStationSql, delSqlArr)
-        if(delLoadRes.affectedRows > 0 && delStationRes.affectedRows > 0) {
-            return await updatePositionId(ctx)
-        }else {
-            ctx.body = new Respond(false, 200, '审核失败，请重试')
-        }
-    }else if (oldPositionId !== positionId && oldPositionId === 3) {
-        let delSql = `delete from section_file_table where fid = ?`
-            delSqlArr = [fid]
-            delRes = await query(delSql, delSqlArr)
-        if(delRes.affectedRows > 0) {
-            return await updatePositionId(ctx)
-        }else {
-            ctx.body = new Respond(false, 200, '审核失败，请重试')
-        }
-    }else {
-        return await updatePositionId(ctx)
-    }
-
-}
-
 var auditPosTransferApply = async ctx => {
-    let { fid, stationId, levelId, transferId, modeId, transferTypeId, oldPositionId, positionId } = ctx.request.body
+    let { transferTypeId } = ctx.request.body
     if(transferTypeId === 2) {
-        if(modeId === 1) {
-            let updateSql = `update station_file_table set stationId=?, levelId=?, updateTime=? where fid=?`
-                updateSqlArr = [stationId, levelId, new Date(), fid]
-                updateRes = await query(updateSql, updateSqlArr)
-                checkTargetSql = `select teachLoadTarget from performance_target_table as a, station_file_table as b where a.stationId = b.stationId and a.levelId = b.levelId and fid = ?`,
-                checkTargetSqlArr = [fid],
-                checkTargetRow = await query(checkTargetSql, checkTargetSqlArr)
-                updateTargetSql = `update teachLoad_record_table set teachLoad=?, updateTime=? where fid=?`
-                updateTargetSqlArr = [checkTargetRow[0].teachLoadTarget, new Date(), fid]
-                updateTargetRes = await query(updateTargetSql, updateTargetSqlArr)
-            ctx.body = await updateModeId(modeId, transferId)
-        }else {
-            ctx.body = await updateModeId(modeId, transferId)
-        }
+        ctx.body = await auditStationTransferApply(ctx)
     }else if(transferTypeId === 1) {
         ctx.body = await auditPositionTransferApply(ctx)
     }
