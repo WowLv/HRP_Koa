@@ -33,12 +33,13 @@ var getPosTransferApply = async ctx => {
     let sql = ''
         sumSql = ''
     if(mode === 'apply') {
-        sql = `select pos_transfer_table.*, name, transferTypeName from file_table, pos_transfer_table, pos_transfer_type_table where file_table.fid = pos_transfer_table.fid and pos_transfer_type_table.transferTypeId = pos_transfer_table.transferTypeId and modeId = 0 limit ${page}, 10`,
+        sql = `select pos_transfer_table.*, name, transferTypeName from file_table, pos_transfer_table, pos_transfer_type_table where file_table.fid = pos_transfer_table.fid and pos_transfer_type_table.transferTypeId = pos_transfer_table.transferTypeId and modeId = 0 limit ${page}, 8`,
         sumSql = `select count(*) as sum from pos_transfer_table where modeId = 0`
     }else {
-        sql = `select pos_transfer_table.*, name, transferTypeName from file_table, pos_transfer_table, pos_transfer_type_table where file_table.fid = pos_transfer_table.fid and pos_transfer_type_table.transferTypeId = pos_transfer_table.transferTypeId and (modeId = 1 or modeId = 2) limit ${page}, 10`,
+        sql = `select pos_transfer_table.*, name, transferTypeName from file_table, pos_transfer_table, pos_transfer_type_table where file_table.fid = pos_transfer_table.fid and pos_transfer_type_table.transferTypeId = pos_transfer_table.transferTypeId and (modeId = 1 or modeId = 2) limit ${page}, 8`,
         sumSql = `select count(*) as sum from pos_transfer_table where modeId = 1 or modeId = 2`
     }
+
     
     let sumRow = await query(sumSql, []),
         row = await query(sql, []),
@@ -95,3 +96,4 @@ module.exports = {
     getPosTransferApply,
     auditPosTransferApply
 }
+
