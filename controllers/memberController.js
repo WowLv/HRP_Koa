@@ -2,6 +2,7 @@ var query = require('../util/dbconfig');
 // var { LogCheck } = require('./loginController')
 var { formatDate } = require('../util/format')
 var { Respond } = require('../util/class')
+var { addNotice } = require('../util/function')
 
 var getPersonFile = async ctx => {
     let {fid} = ctx.query,
@@ -113,10 +114,13 @@ var getAllMenberApply = async ctx => {
         sqlArr = [0],
         sumRow = await query(sumSql, []),
         row = await query(sql, sqlArr)
-    row.forEach(item => {
-        item.applyTime = formatDate(item.applyTime, 'Y:M:D')
-        item.updateTime = formatDate(item.updateTime, 'Y:M:D')
-    })
+    if(row.length) {
+        row.forEach(item => {
+            item.applyTime = formatDate(item.applyTime, 'Y:M:D')
+            item.updateTime = formatDate(item.updateTime, 'Y:M:D')
+        })
+    }
+    
     ctx.body = new Respond(true, 200, '查询成功', { data: row, sum: sumRow[0].sum })
 }
 
@@ -128,10 +132,12 @@ var getAllMenberApplyFinished = async ctx => {
         sqlArr = [1,2],
         sumRow = await query(sumSql, []),
         row = await query(sql, sqlArr)
-    row.forEach(item => {
-        item.applyTime = formatDate(item.applyTime, 'Y:M:D')
-        item.updateTime = formatDate(item.updateTime, 'Y:M:D')
-    })
+    if(row.length) {
+        row.forEach(item => {
+            item.applyTime = formatDate(item.applyTime, 'Y:M:D')
+            item.updateTime = formatDate(item.updateTime, 'Y:M:D')
+        })
+    }
     ctx.body = new Respond(true, 200, '查询成功', { data: row, sum: sumRow[0].sum })
 }
 
@@ -139,9 +145,10 @@ var ERApply = async ctx => {
     let { applicant, fid, reason, applyTypeId, modeId, applyTime, positionId } = ctx.request.body,
         sql = `insert into memberapply_table (applicant, fid, reason, applyTypeId, modeId, applyTime, createTime, updateTime, positionId) values (?,?,?,?,?,?,?,?,?)`,
         sqlArr = [applicant, fid, reason, applyTypeId, modeId, new Date(applyTime), new Date(), new Date(), positionId],
-        row = await query(sql, sqlArr)
+        row = await query(sql, sqlArr),
+        noticeRes = addNotice(null, 2, 1, 1, 5, null)
 
-    if(row.affectedRows > 0) {
+    if(noticeRes && row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '申请成功，请等待审核')
     }else {
         ctx.body = new Respond(false, 200, '申请失败，请重试')
@@ -149,12 +156,19 @@ var ERApply = async ctx => {
 }
 
 var auditMember = async ctx => {
-    let { mid, modeId } = ctx.request.body,
+    let { mid, modeId, positionId } = ctx.request.body,
         sql = `UPDATE memberapply_table set modeId=?, updateTime=? where mid=?`,
         sqlArr = [modeId, new Date(), mid],
-        row = await query(sql, sqlArr)
+        row = await query(sql, sqlArr),
+        noticeRes
+        if(positionId === 3) {
+            noticeRes = addNotice(null, 2, modeId+1, 1, 5, null) 
+        }else {
+            noticeRes = addNotice(null, 3, modeId+1, 1, 5, 1) 
+        }
+        
 
-    if(row.affectedRows > 0) {
+    if(noticeRes && row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '审批成功')
     }else {
         ctx.body = new Respond(false, 200, '审批失败，请重试')
@@ -192,12 +206,26 @@ var getPositionList = async ctx => {
         stationSql = `select * from station_table`,
         positionSql = `select * from position_table`,
         sectionSql = `select * from section_table`,
+        powerSql = `select powerId as value, powerName as text from power_table`
         levelRow = await query(levelSql, []),
         stationRow = await query(stationSql, []),
         positionRow = await query(positionSql, []),
-        sectionRow = await query(sectionSql, [])
+        sectionRow = await query(sectionSql, []),
+        powerRow = await query(powerSql, [])
 
-    ctx.body = new Respond(true, 200, '查询成功', {levelRow, stationRow, positionRow, sectionRow})
+    ctx.body = new Respond(true, 200, '查询成功', {levelRow, stationRow, positionRow, sectionRow, powerRow})
+}
+
+var deleteMemRecord = async ctx => {
+    let { mid } = ctx.request.body,
+        sql = `delete from memberApply_table where mid = ?`,
+        sqlArr = [mid],
+        res = await query(sql, sqlArr)
+    if(res.affectedRows > 0) {
+        ctx.body = new Respond(true, 200, '删除成功')
+    }else {
+        ctx.body = new Respond(false, 200, '删除失败，请重试')
+    }
 }
 
 module.exports = {
@@ -211,5 +239,6 @@ module.exports = {
     checkResign,
     searchMember,
     getPositionList,
-    getAllMenberApplyFinished
+    getAllMenberApplyFinished,
+    deleteMemRecord
 }

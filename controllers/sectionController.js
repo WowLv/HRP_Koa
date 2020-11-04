@@ -1,6 +1,7 @@
 var query = require('../util/dbconfig');
 var { formatDate } = require('../util/format')
 var { Respond } = require('../util/class')
+var { addNotice } = require('../util/function')
 
 var getEachSectionFile = async ctx => {
     let { page, sectionId } = ctx.query
@@ -12,10 +13,11 @@ var getEachSectionFile = async ctx => {
         sumSqlArr = [sectionId],
         row = await query(sql, sqlArr),
         sumRow = await query(sumSql, sumSqlArr)
-    row.forEach(item => {
-        item.updateTime = formatDate(item.updateTime, 'Y:M:D')
-    })
-
+    if(row.length) {
+        row.forEach(item => {
+            item.updateTime = formatDate(item.updateTime, 'Y:M:D')
+        })
+    }
     ctx.body = new Respond(true, 200, '查询成功', { data: row, sum: sumRow[0].sum })
 }
 
@@ -30,8 +32,9 @@ var sectionApply = async ctx => {
     if(checkFidRow.length) {
         ctx.body = new Respond(false, 200, '该用户已提交同类型申请')
     }else {
-        let applyRes = await query(applySql, applySqlArr)
-        if(applyRes.affectedRows > 0) {
+        let applyRes = await query(applySql, applySqlArr),
+            noticeRes = addNotice(null, 2, 1, 1, 1, null)
+        if(noticeRes && applyRes.affectedRows > 0) {
             ctx.body = new Respond(true, 200, '申请成功，请等待审核')
         }else {
             ctx.body = new Respond(false, 200, '申请失败，请重试')
@@ -55,39 +58,85 @@ var getAllSectionApply = async ctx => {
         sumRow = await query(sumSql, []),
         sectionSql = `select * from section_table`,
         sectionRow = await query(sectionSql, [])
-
-    row.forEach(item => {
-        item.applyTime = formatDate(item.applyTime, 'Y:M:D')
-        item.updateTime = formatDate(item.updateTime, 'Y:M:D')
-        sectionRow.map(sectionItem => {
-            if(sectionItem.sectionId === item.oldSectionId) {
-                item.oldSectionName = sectionItem.sectionName
-            }
-            if(sectionItem.sectionId === item.sectionId) {
-                item.sectionName = sectionItem.sectionName
-            }
+    if(row.length) {
+        row.forEach(item => {
+            item.applyTime = formatDate(item.applyTime, 'Y:M:D')
+            item.updateTime = formatDate(item.updateTime, 'Y:M:D')
+            sectionRow.map(sectionItem => {
+                if(sectionItem.sectionId === item.oldSectionId) {
+                    item.oldSectionName = sectionItem.sectionName
+                }
+                if(sectionItem.sectionId === item.sectionId) {
+                    item.sectionName = sectionItem.sectionName
+                }
+            })
         })
-    })
+    }
     ctx.body = new Respond(true, 200, '查询成功', {data: row, sum: sumRow[0].sum})
     
 }
 
 var auditSectionApply = async ctx => {
     let { transferId, sectionId, modeId, fid } = ctx.request.body,
-        flag = true
+        flag = true,
+        noticeRes
     if(modeId === 1) {
-        let updateSectionSql = `update section_file_table set sectionId=? where fid = ?`,
-            updateSectionSqlArr = [sectionId, fid],
-            updateSectionRes = await query(updateSectionSql, updateSectionSqlArr)
-        if(!updateSectionRes.affectedRows) flag = false;
+        let checkSql = `select * from section_file_table where fid = ?`,
+            checkSqlArr = [fid],
+            checkRow = await query(checkSql, checkSqlArr)
+        noticeRes = addNotice(fid, null, 2, 2, 1, null)
+        if(checkRow.length) {
+            let updateSectionSql = `update section_file_table set sectionId=? where fid = ?`,
+                updateSectionSqlArr = [sectionId, fid],
+                updateSectionRes = await query(updateSectionSql, updateSectionSqlArr)
+            if(!updateSectionRes.affectedRows) {
+                flag = false;
+            }
+        }else {
+            let insertSql = `insert into section_file_table (fid, sectionId, updateTime) values (?,?,?)`,
+                insertSqlArr = [fid, sectionId, new Date()],
+                insertRes = await query(insertSql, insertSqlArr)
+            if(!insertRes.affectedRows) {
+                flag = false;
+            }
+        }
+        
     }
+    noticeRes = addNotice(fid, null, 3, 2, 1, null)
     let updateModeSql = `update section_transfer_table set modeId=?, updateTime=? where transferId=?`,
         updateModeArr = [modeId, new Date(), transferId],
-        updateModeRes = await query(updateModeSql, updateModeArr)
-    if(flag && updateModeRes.affectedRows > 0) {
+        updateModeRes = await query(updateModeSql, updateModeArr),
+        updatePowerSql = `update user_table set powerId = 3 + ? where uid = ?`,
+        updatePowerSqlArr = [sectionId, fid],
+        updatePowerRes = await query(updatePowerSql, updatePowerSqlArr)
+
+    if(noticeRes && flag && updateModeRes.affectedRows > 0 && updatePowerRes.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '审核成功，信息已修改')
     }else {
         ctx.body = new Respond(false, 200, '审核失败，请重试')
+    }
+}
+
+var setSection = async ctx => {
+    let { mode, sectionId, newName } = ctx.request.body,
+        sql = ``,
+        sqlArr = []
+        
+    if(mode === 'add') {
+        let initIdSql = `select count(sectionId) + 1 as newId from section_table`,
+            initIdRow = await query(initIdSql, []),
+            newId = initIdRow[0].newId
+        sql = `insert into section_table (sectionId, sectionName) values (?,?)`
+        sqlArr = [newId, newName]
+    }else if(mode === 'modify') {
+        sql = `update section_table set sectionName = ? where sectionId = ?`
+        sqlArr = [newName, sectionId]
+    }
+    res = await query(sql, sqlArr)
+    if(res.affectedRows >= 0) {
+        ctx.body = new Respond(true, 200, '部门设置成功')
+    }else {
+        ctx.body = new Respond(false, 200, '部门设置失败，请重试')
     }
 }
 
@@ -95,5 +144,6 @@ module.exports = {
     getEachSectionFile,
     sectionApply,
     getAllSectionApply,
-    auditSectionApply
+    auditSectionApply,
+    setSection
 }

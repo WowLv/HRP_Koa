@@ -2,7 +2,7 @@ var query = require('../util/dbconfig');
 var { formatDate } = require('../util/format')
 var { Respond } = require('../util/class')
 var send = require('koa-send')
-var { setGpa } = require('../util/function')
+var { setGpa, addNotice } = require('../util/function')
 
 var uploadScientificLoad = async ctx => {
     
@@ -12,8 +12,9 @@ var uploadScientificLoad = async ctx => {
         initIdRow = await query(initIdSql, [])
         sql = `insert into workLoad_storage_table (storageId, originalname, destination, filename, workLoadTypeId, fid, extra, calc, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?,?,?,?)`,
         sqlArr = [initIdRow[0].length, originalname, destination, filename, workLoadTypeId, fid, extra, calc, workLoadId, modeId, new Date()],
-        row = await query(sql, sqlArr)
-    if(row.affectedRows > 0) {
+        row = await query(sql, sqlArr),
+        noticeRes = addNotice(null, 3, 1, 1, 4, 3)
+    if(noticeRes && row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '上传成功')
     }else {
         ctx.body = new Respond(false, 200, `${originalname}上传发送错误，请重试`)
@@ -27,8 +28,9 @@ var uploadPublicLoad = async ctx => {
         initIdRow = await query(initIdSql, [])
         sql = `insert into workLoad_storage_table (storageId, originalname, destination, filename, workLoadTypeId, fid, extra, calc, workLoadId, modeId, uploadTime) values (?,?,?,?,?,?,?,?,?,?,?)`,
         sqlArr = [initIdRow[0].length, originalname, destination, filename, workLoadTypeId, fid, extra, calc, workLoadId, modeId, new Date()],
-        row = await query(sql, sqlArr)
-    if(row.affectedRows > 0) {
+        row = await query(sql, sqlArr),
+        noticeRes = addNotice(null, 3, 1, 1, 4, 3)
+    if(noticeRes && row.affectedRows > 0) {
         ctx.body = new Respond(true, 200, '上传成功')
     }else {
         ctx.body = new Respond(false, 200, `${originalname}上传发送错误，请重试`)
@@ -44,10 +46,8 @@ var publicLoadSummary = async ctx => {
 var scientLoadSummary = async ctx => {
     let sumSql = `select scientload_table.*, scientload_type_table.scientLoadType from scientload_table, scientload_type_table where scientload_table.scientTypeId = scientload_type_table.scientTypeId`
     let extraSql = `select workLoadId from scientload_extra_table`
-    // let extraMeasureSql = `select * from extraMeasure_table`
     let scientList = await query(sumSql, [])
     let extraRow = await query(extraSql, [])
-    // let extraMeasureList = await query(extraMeasureSql, [])
     
     let extraList = []
     extraRow.map(item => {
@@ -93,12 +93,14 @@ var workLoadManage = async ctx => {
         publicRow = await query(publicSql, []),
         sumRow = await query(sumSql, []),
         res = [...scientRow, ...publicRow]
-    res.sort((a, b) => {
-        return a.uploadTime - b.uploadTime
-    })
-    res.forEach(item => {
-        item.uploadTime = formatDate(item.uploadTime, 'Y:M:D')
-    })
+    if(res.length) {
+        res.sort((a, b) => {
+            return a.uploadTime - b.uploadTime
+        })
+        res.forEach(item => {
+            item.uploadTime = formatDate(item.uploadTime, 'Y:M:D')
+        })
+    }
     ctx.body = new Respond(true, 200, '查询成功', { data: res, sum: sumRow[0].sum })
 }
 
@@ -115,10 +117,11 @@ var auditWorkLoad = async ctx => {
     let { workLoadTypeId, storageId, modeId, fid } = ctx.request.body,
         updateModeSql = `update workload_storage_table set modeId = ? where storageId = ?`,
         updateModeSqlArr = [modeId, storageId],
-        updateModeRes = await query(updateModeSql, updateModeSqlArr)
-    console.log(ctx.request.body)
+        updateModeRes = await query(updateModeSql, updateModeSqlArr),
+        noticeRes
     if(modeId === 1) {
-        let gpa = await setGpa(storageId),
+        noticeRes = addNotice(fid, null, 2, 2, 4, null)
+        let gpa = await setGpa(ctx),
             updateGpaSql = ``,
             updateGpaSqlArr = [gpa, fid]
         if(workLoadTypeId === 1) {
@@ -130,16 +133,109 @@ var auditWorkLoad = async ctx => {
         } 
 
         let updateGpaRes = await query(updateGpaSql, updateGpaSqlArr)
-        if(updateModeRes.affectedRows > 0 && updateGpaRes.affectedRows > 0) {
+        if(noticeRes && updateModeRes.affectedRows > 0 && updateGpaRes.affectedRows > 0) {
             ctx.body = new Respond(true, 200, '审核成功，信息修改成功')
         }else {
             ctx.body = new Respond(false, 200, '审核失败，请重试')
         }
     }else if(modeId === 2){
-        ctx.body = new Respond(true, 200, '审核成功，未通过')
+        noticeRes = addNotice(fid, null, 3, 2, 4, null)
+        if(noticeRes) {
+            ctx.body = new Respond(true, 200, '审核成功，未通过')
+        }
+        
     }
 }
 
+var getWorkLoadType = async ctx => {
+    let workLoadTypeSql = `select * from workLoad_type_table`,
+        workLoadTypeRow = await query(workLoadTypeSql, []),
+        scientTypeSql = `select * from scientLoad_type_table`,
+        scientTypeRow = await query(scientTypeSql, [])
+    ctx.body = new Respond(true, 200, '查询成功', { workLoadTypeRow, scientTypeRow } )
+}
+
+var getGpa = async ctx => {
+    let { workLoadTypeId, workLoadId } = ctx.query,
+          sql = ``,
+          sqlArr = []
+    if(parseInt(workLoadTypeId) === 1) {
+        //教科研
+        sql = `select gpa, (select extraGpa from scientload_extra_table where workLoadId = ?) as extraGpa from scientload_table where workLoadId = ?`
+        sqlArr = [workLoadId, workLoadId]
+    }else if(parseInt(workLoadTypeId) === 2) {
+        //公共
+        sql = `select gpa from publicLoad_table where workLoadId = ?`
+        sqlArr = [workLoadId]
+    }
+    let row = await query(sql, sqlArr)
+    ctx.body = new Respond(true, 200, '查询成功', row[0])
+}
+
+var setWorkLoad = async ctx => {
+    const { workLoadTypeId, workLoadId, measure, gpa, extraGpa, extraMeasure } = ctx.request.body
+    let sql = ``,
+        sqlArr = []
+    if(workLoadTypeId === 1) {
+        //教科研
+        if(extraGpa) {
+            let extraSql = `update scientLoad_extra_table set extra = ?, extraMeasure = ? where workLoadId = ?`,
+                extraSqlArr = [extra, extraMeasure, workLoadId],
+                extraRes = await query(extraSql, extraSqlArr)
+                if(extraRes.affectedRows < 0) {
+                    ctx.body = new Respond(false, 200, '更改工作量失败，请重试')
+                    return;
+                }
+        }
+        sql = `update scientLoad_table set measure = ?, gpa = ? where workLoadId = ?`
+        sqlArr = [ measure, gpa, workLoadId]
+    }else if(workLoadTypeId === 2) {
+        sql = `update publicLoad_table set measure = ?, gpa = ? where workLoadId = ?`
+        sqlArr = [ measure, gpa, workLoadId]
+    }
+    let res = await query(sql, sqlArr)
+    if(res.affectedRows >= 0) {
+        ctx.body = new Respond(true, 200, '更改工作量成功')
+    }else {
+        ctx.body = new Respond(false, 200, '更改工作量失败，请重试')
+    }
+}
+
+var addWorkLoad = async ctx => {
+    const { workLoadTypeId, workLoad, measure, gpa, extraGpa, extraMeasure, scientTypeId } = ctx.request.body
+    let sql = ``,
+        sqlArr = []
+        flag = false
+    if(workLoadTypeId === 1) {
+        //教科研
+        let initIdSql = `select count(workLoadId) + 1 as workLoadId from scientLoad_table`,
+            initIdRow = await query(initIdSql, []),
+            newWorkLoadId = initIdRow[0].workLoadId
+        if(extraGpa) {
+            let extraSql = `insert into scientLoad_extra_table (workLoadId, extraMeasure, extraGpa) values (?,?,?)`,
+                extraSqlArr = [newWorkLoadId, extraMeasure, extraGpa],
+                extraRes = await query(extraSql, extraSqlArr)
+            if(extraRes.affectedRows > 0) {
+                flag = true
+            }
+        }
+        sql = `insert into scientLoad_table (workLoadId, workLoad, gpa, measure, scientTypeId) values (?,?,?,?,?)`,
+        sqlArr = [newWorkLoadId, workLoad, gpa, measure, scientTypeId]  
+    }else if(workLoadTypeId === 2) {
+        //公共
+        let initIdSql = `select count(workLoadId) + 1 as workLoadId from publicLoad_table`,
+            initIdRow = await query(initIdSql, []),
+            newWorkLoadId = initIdRow[0].workLoadId
+        sql = `insert into publicLoad_table (workLoadId, workLoad, gpa, measure) values (?,?,?,?)`,
+        sqlArr = [newWorkLoadId, workLoad, gpa, measure]  
+    }
+    res = await query(sql, sqlArr)
+    if(res.affectedRows > 0) {
+        ctx.body = new Respond(true, 200, '新增工作量成功')
+    }else {
+        ctx.body = new Respond(false, 200, '新增工作量失败，请重试')
+    }
+}
 
 module.exports = {
     uploadScientificLoad,
@@ -149,5 +245,9 @@ module.exports = {
     workLoadManage,
     downloadWorkLoad,
     getMeasure,
-    auditWorkLoad
+    auditWorkLoad,
+    getWorkLoadType,
+    getGpa,
+    setWorkLoad,
+    addWorkLoad
 }

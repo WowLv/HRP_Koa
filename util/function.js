@@ -13,8 +13,12 @@ async function updateModeId(modeId, transferId) {
 
 async function updatePositionId(ctx) {
     let { positionId = 4, fid, modeId, transferId } = ctx.request.body,
-        powerSql = `update user_table set powerId = ?, updateTime = ? where uid = ?`
-        powerSqlArr = [positionId + 1, new Date(), fid],
+        powerId = 7
+    if(positionId < 3) {
+        powerId = positionId + 1
+    }
+    let powerSql = `update user_table set powerId = ?, updateTime = ? where uid = ?`
+        powerSqlArr = [powerId, new Date(), fid],
         fileSql = `update file_table set positionId = ? where fid = ?`,
         fileSqlArr = [positionId, fid],
         transferSql = `update pos_transfer_table set modeId = ? where transferId = ?`,
@@ -53,13 +57,18 @@ async function auditStationTransferApply(ctx) {
             updateTargetSql = `update gpa_record_table set teachLoad=?, updateTime=?, isExist = 1 where fid=?`,
             updateTargetSqlArr = [checkTargetRow[0].teachLoadTarget, new Date(), fid],
             updateTargetRes = await query(updateTargetSql, updateTargetSqlArr)
-        if(updateRes.affectedRows > 0 && updateTargetRes.affectedRows > 0) {
+            noticeRes = addNotice(fid, null, 2, 2, 2, null)
+        if(updateRes.affectedRows > 0 && updateTargetRes.affectedRows > 0 && noticeRes) {
             return await updateModeId(modeId, transferId)
         }else {
             return new Respond(false, 200, '审核失败，请重试')
         }
     }else {
-        return await updateModeId(modeId, transferId)
+        let noticeRes = addNotice(fid, null, 3, 2, 2, null)
+        if(noticeRes) {
+            return await updateModeId(modeId, transferId)
+        }
+        
     }
 }
 
@@ -69,6 +78,7 @@ async function auditPositionTransferApply(ctx) {
     //oldPositionId !== positionId && oldPosition === 3   ---> delete section_file_table
     let { fid, oldPositionId, positionId, modeId } = ctx.request.body
     if(modeId === 1) {
+        let noticeRes = addNotice(fid, null, 2, 2, 3, null)
         if(oldPositionId !== positionId && oldPositionId === 4) {
             let delLoadSql = `update gpa_record_table set isExist = 0 where fid=?`,
                 delStationSql = `delete from station_file_table where fid = ?`,
@@ -77,7 +87,7 @@ async function auditPositionTransferApply(ctx) {
                 delLoadRes = await query(delLoadSql, delSqlArr),
                 delStationRes = await query(delStationSql, delSqlArr)
                 delTeachRecordRes = await query(delTeachRecordSql, delSqlArr)
-            if(delLoadRes.affectedRows >= 0 && delStationRes.affectedRows >= 0 && delTeachRecordRes.affectedRows >= 0) {
+            if(noticeRes && delLoadRes.affectedRows >= 0 && delStationRes.affectedRows >= 0 && delTeachRecordRes.affectedRows >= 0) {
                 return await updatePositionId(ctx)
             }else {
                 ctx.body = new Respond(false, 200, '审核失败，请重试')
@@ -86,37 +96,43 @@ async function auditPositionTransferApply(ctx) {
             let delSql = `delete from section_file_table where fid = ?`,
                 delSqlArr = [fid],
                 delRes = await query(delSql, delSqlArr)
-            if(delRes.affectedRows >= 0) {
+            if(delRes.affectedRows >= 0 && noticeRes) {
                 return await updatePositionId(ctx)
             }else {
                 ctx.body = new Respond(false, 200, '审核失败，请重试')
             }
         }else {
-            return await updatePositionId(ctx)
+            if(noticeRes) {
+                return await updatePositionId(ctx)
+            }
         }
     }else {
-        return await updatePositionId(ctx)
+        let noticeRes = addNotice(fid, null, 3, 2, 3, null)
+        if(noticeRes) {
+            return await updatePositionId(ctx)
+        }
     }
 }
 
-async function getCalc(storageId) {
-    let sql = `select workLoadTypeId, workLoadId, extra from workLoad_storage_table where storageId = ?`,
-        sqlArr = [storageId],
-        row = await query(sql, sqlArr)
-    return row[0]
-}
+// async function getCalc(storageId) {
+//     let sql = `select workLoadTypeId, workLoadId, extra from workLoad_storage_table where storageId = ?`,
+//         sqlArr = [storageId],
+//         row = await query(sql, sqlArr)
+//     return row[0]
+// }
 
-async function setGpa(storageId) {
-    let { workLoadTypeId, workLoadId, extra } = await getCalc(storageId)
-    let checkSql = ``,
-        checkSqlArr = [workLoadId]
+async function setGpa(ctx) {
+    let { workLoadTypeId, workLoadId, extra, calc } = ctx.request.body,
+        checkSql = ``,
+        checkSqlArr = [calc, workLoadId]
     if(workLoadTypeId === 2) {
-        checkSql = `select gpa*calc from publicLoad_table a, workload_storage_table b where a.workLoadId = b.workLoadId and a.workLoadId = ?`
+        checkSql = `select gpa*? as gpa from publicLoad_table where workLoadId = ?`
     }else if(workLoadTypeId === 1) {
         if(extra) {
-            checkSql = `select gpa*calc + extraGpa*extra as gpa from scientload_table a, workload_storage_table b, scientload_extra_table c where c.workLoadId = a.workLoadId  and a.workLoadId = b.workLoadId and a.workLoadId = ?`
+            checkSql = `select gpa*? + extraGpa*? as gpa from scientload_table a, scientload_extra_table b where a.workLoadId = b.workLoadId and a.workLoadId = ?`
+            checkSqlArr = [calc, extra, workLoadId]
         }else {
-            checkSql = `select gpa*calc as gpa from scientload_table a, workload_storage_table b where a.workLoadId = b.workLoadId and a.workLoadId = ?`
+            checkSql = `select gpa*? as gpa from scientload_table a, workload_storage_table b where a.workLoadId = b.workLoadId and a.workLoadId = ?`
         } 
     }
     let checkRow = await query(checkSql, checkSqlArr),
@@ -124,10 +140,48 @@ async function setGpa(storageId) {
     return gpa
 }
 
+async function addNotice(notifier, positionId, noticeTypeId, noticeModeId, noticeSourceId, sectionId) {
+    let sql = ``,
+        sqlArr = []
+    if(notifier && !positionId) {
+        //私发
+        sql = `insert into notification_table (noticeTypeId, noticeModeId, noticeSourceId, isRead, createTime, notifier) values (?,?,?,?,?,?)`
+        sqlArr = [noticeTypeId, noticeModeId, noticeSourceId, 0, new Date(), notifier]
+    }else if(!notifier && positionId){
+        //群发
+        sql = `insert into notification_table (noticeTypeId, noticeModeId, noticeSourceId, isRead, createTime, positionId, sectionId) values (?,?,?,?,?,?,?)`
+        sqlArr = [noticeTypeId, noticeModeId, noticeSourceId, 0, new Date(), positionId, sectionId]
+    }
+    let res = await query(sql, sqlArr)
+    if(res.affectedRows > 0) {
+        return true
+    }
+}
+
+function calcEvaluation(grade, rule) {
+    let evaluation = ''
+    grade = 100 + grade
+    
+    if(rule && rule.length) {
+        rule.map((item, index) => {
+            if(index === rule.length - 1 && !evaluation) {
+                evaluation = item.evaluation
+            }else if(index !== rule.length - 1 && grade >= item.targetGrade) {
+                evaluation = item.evaluation
+            }
+        })
+    }
+    return evaluation
+}
+
+
+
 module.exports = {
     updateModeId,
     updatePositionId,
     auditStationTransferApply,
     auditPositionTransferApply,
-    setGpa
+    setGpa,
+    addNotice,
+    calcEvaluation
 }

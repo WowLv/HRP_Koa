@@ -60,12 +60,12 @@ var Login = async ctx => {
 }
 
 var modifyPw = async ctx => {
-    const {oldPassword, newPassword} = ctx.request.body
-    const userObj = await LogCheck(ctx)
+    
+    const {uid, oldPassword, newPassword} = ctx.request.body
     let sql = `select * from user_table where uid=? and pwd=?`
-    let sqlArr = [userObj.uid, oldPassword]
+    let sqlArr = [uid, oldPassword]
     let sql1 = `UPDATE user_table SET pwd=? where uid=?`
-    let sqlArr1 = [newPassword, userObj.uid]
+    let sqlArr1 = [newPassword, uid]
 
     let checkRow = await query(sql, sqlArr)
     let modifyRow = await query(sql1, sqlArr1)
@@ -78,7 +78,19 @@ var modifyPw = async ctx => {
     }
 }
 
-var Register = async ctx => {
+var deleteUser = async ctx => {
+    let { uid } = ctx.request.body,
+        sql = `delete from user_table where uid = ?`
+        sqlArr = [uid],
+        res = await query(sql, sqlArr)
+    if(res.affectedRows > 0) {
+        ctx.body = new Respond(true, 200, '删除用户成功')
+    }else {
+        ctx.body = new Respond(false, 200, '删除用户失败, 请重试')
+    }
+}
+
+var registerUser = async ctx => {
     let {uid, username, sex, age, pwd, phone, email, powerId} = ctx.request.body
     let createTime = new Date()
     if(!email) email = ""
@@ -99,9 +111,20 @@ var Register = async ctx => {
     }
 }
 
+var getPercent = async ctx => {
+    let memberSql = `select positionName as name, 100*count(a.positionId)/(select count(*) as sum from file_table) as percent from file_table a, position_table b where a.positionId = b.positionId GROUP BY a.positionId`,
+        sectionSql = `select sectionName as name, 100*count(a.sectionId)/(select count(*) as sum from section_file_table) as percent from section_file_table a, section_table b where a.sectionId = b.sectionId GROUP BY a.sectionId`,
+        memberList = await query(memberSql, []),
+        sectionList = await query(sectionSql, [])
+        
+    ctx.body = new Respond(true, 200, '查询成功', {memberList, sectionList})
+}
+
 module.exports = {
     LogCheck,
     Login,
     modifyPw,
-    Register
+    registerUser,
+    getPercent,
+    deleteUser
 }

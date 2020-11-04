@@ -6,7 +6,7 @@ var { Respond } = require('../util/class')
 var getAllInfo = async ctx => {
     let {page} = ctx.query
     page = (page - 1) * 10 || 0
-    let sql = `select uid, username, sex, age, phone, email, user_table.powerId from power_table, user_table where power_table.powerId = user_table.powerId limit ${page},10`
+    let sql = `select uid, username, sex, age, phone, email, user_table.powerId, powerName from power_table, user_table where power_table.powerId = user_table.powerId limit ${page},10`
     let sumSql = `select count(*) as sum from user_table`
     let sqlArr = []
 
