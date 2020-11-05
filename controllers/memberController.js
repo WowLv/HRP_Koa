@@ -228,6 +228,72 @@ var deleteMemRecord = async ctx => {
     }
 }
 
+var delMemberFile = async ctx => {
+    let { positionId, fid } = ctx.request.body
+    if(positionId === 4) {
+        //教师
+        let delSql1 = `delete from file_table where fid = ?`,
+            delRes1 = await query(delSql1, [fid]),
+            delSql2 = `delete from station_file_table where fid = ?`,
+            delRes2 = await query(delSql2, [fid]),
+            delSql3 = `delete from evaluation_record_table where fid = ?`,
+            delRes3 = await query(delSql3, [fid]),
+            delSql4 = `delete from memberApply_table where fid = ?`,
+            delRes4 = await query(delSql4, [fid]),
+            delSql5 = `delete from pos_transfer_table where fid = ?`,
+            delRes5 = await query(delSql5, [fid]),
+            delSql6 = `delete from notification_table where notifier = ?`,
+            delRes6 = await query(delSql6, [fid]),
+            delSql7 = `delete from user_table where uid = ?`,
+            delRes7 = await query(delSql7, [fid]),
+            delSql8 = `delete from workLoad_storage_table where fid = ?`,
+            delRes8 = await query(delSql8, [fid]),
+            delSql9 = `delete from gpa_record_table where fid = ?`,
+            delRes9 = await query(delSql9, [fid]),
+            delSql10 = `delete from teach_record_table where fid = ?`,
+            delRes10 = await query(delSql10, [fid])
+        if(delRes1.affectedRows >= 0 && delRes2.affectedRows >= 0 && delRes3.affectedRows >= 0 && delRes4.affectedRows >= 0 && delRes5.affectedRows >= 0 && delRes6.affectedRows >= 0 && delRes7.affectedRows >= 0 && delRes8.affectedRows >= 0 && delRes9.affectedRows >= 0 && delRes10.affectedRows >= 0) {
+            ctx.body = new Respond(true, 200, "删除档案成功")
+        }else {
+            ctx.body = new Respond(false, 200, "删除档案失败")
+        }
+    }else if(positionId === 3){
+        //教务员
+        let delSql1 = `delete from file_table where fid = ?`,
+            delRes1 = await query(delSql1, [fid]),
+            delSql2 = `delete from section_file_table where fid = ?`,
+            delRes2 = await query(delSql2, [fid]),
+            delSql3 = `delete from memberApply_table where fid = ?`,
+            delRes3 = await query(delSql3, [fid]),
+            delSql4 = `delete from pos_transfer_table where fid = ?`,
+            delRes4 = await query(delSql4, [fid]),
+            delSql5 = `delete from notification_table where notifier = ?`,
+            delRes5 = await query(delSql5, [fid]),
+            delSql6 = `delete from user_table where uid = ?`,
+            delRes6 = await query(delSql6, [fid]),
+            delSql7 = `delete from section_transfer_table where fid = ?`,
+            delRes7 = await query(delSql7, [fid])
+        if(delRes1.affectedRows >= 0 && delRes2.affectedRows >= 0 && delRes3.affectedRows >= 0 && delRes4.affectedRows >= 0 && delRes5.affectedRows >= 0 && delRes6.affectedRows >= 0 && delRes7.affectedRows >= 0) {
+            ctx.body = new Respond(true, 200, "删除档案成功")
+        }else {
+            ctx.body = new Respond(false, 200, "删除档案失败")
+        }
+
+    }else {
+        let delSql1 = `delete from file_table where fid = ?`,
+            delRes1 = await query(delSql1, [fid]),
+            delSql2 = `delete from notification_table where notifier = ?`,
+            delRes2 = await query(delSql2, [fid]),
+            delSql3 = `delete from user_table where uid = ?`,
+            delRes3 = await query(delSql3, [fid])
+        if(delRes1.affectedRows >= 0 && delRes2.affectedRows >= 0 && delRes3.affectedRows >= 0) {
+            ctx.body = new Respond(true, 200, "删除档案成功")
+        }else {
+            ctx.body = new Respond(false, 200, "删除档案失败")
+        }
+    }
+}
+
 module.exports = {
     getPersonFile,
     setPersonFile,
@@ -240,5 +306,6 @@ module.exports = {
     searchMember,
     getPositionList,
     getAllMenberApplyFinished,
-    deleteMemRecord
+    deleteMemRecord,
+    delMemberFile
 }

@@ -74,9 +74,25 @@ var getPersonEvaluation = async ctx => {
     ctx.body = new Respond(true, 200, '查询成功', row)
 }
 
+var resetGrade = async ctx => {
+    let { evaluateRecordId, grade } = ctx.request.body,
+        ruleSql = `select targetGrade, evaluation from evaluation_table`,
+        ruleRow = await query(ruleSql, []),
+        evaluation = calcEvaluation(grade - 100, ruleRow),
+        sql = `update evaluation_record_table set grade = ?, evaluation = ?, createTime = ? where evaluateRecordId = ?`,
+        sqlArr = [grade, evaluation, new Date(), evaluateRecordId],
+        res = await query(sql, sqlArr)
+    if(res.affectedRows > 0) {
+        ctx.body = new Respond(true, 200, "绩效再评成功")
+    }else {
+        ctx.body = new Respond(false, 200, "绩效再评失败，请重试")
+    }
+}
+
 module.exports = {
     getGpaRecord,
     getEvaluation,
     evaluate,
-    getPersonEvaluation
+    getPersonEvaluation,
+    resetGrade
 }

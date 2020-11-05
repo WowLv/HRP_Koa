@@ -161,15 +161,15 @@ async function addNotice(notifier, positionId, noticeTypeId, noticeModeId, notic
 function calcEvaluation(grade, rule) {
     let evaluation = ''
     grade = 100 + grade
-    
     if(rule && rule.length) {
-        rule.map((item, index) => {
-            if(index === rule.length - 1 && !evaluation) {
-                evaluation = item.evaluation
-            }else if(index !== rule.length - 1 && grade >= item.targetGrade) {
-                evaluation = item.evaluation
+        for(let i = 0; i < rule.length; i++) {
+            if(i === rule.length - 1 && !evaluation) {
+                evaluation = rule[i].evaluation
+            }else if(i !== rule.length - 1 && grade >= rule[i].targetGrade) {
+                evaluation = rule[i].evaluation
+                break;
             }
-        })
+        }
     }
     return evaluation
 }

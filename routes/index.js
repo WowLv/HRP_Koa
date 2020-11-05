@@ -39,6 +39,7 @@ router.get('/checkResign', memberFile.checkResign)      //m
 router.post('/searchMember', memberFile.searchMember)       //√
 router.get('/positionList', memberFile.getPositionList)     //√
 router.post('/del_memTransfer', memberFile.deleteMemRecord)      //m
+router.post('/del_memberFile', memberFile.delMemberFile)
 
 router.post('/scientLoad', upload.single('file'), workLoad.uploadScientificLoad)    //√
 router.post('/publicLoad', upload.single('file'), workLoad.uploadPublicLoad)    //√
@@ -67,6 +68,7 @@ router.post('/sectionApply', section.sectionApply)              //m
 router.get('/all_sectionApply', section.getAllSectionApply)     //m
 router.post('/audit_sectionApply', section.auditSectionApply)   //m
 router.post('/set_section', section.setSection)                 //m
+router.post('/del_sectionRec', section.delSectionRecord)        //m
 
 router.post('/teach_record', teach.setTeachRecord)  //m
 router.post('/teachLoad', teach.setTeachLoad)       //m
@@ -75,5 +77,6 @@ router.get('/gpa_record', evaluate.getGpaRecord)                 //m
 router.get('/evaluation', evaluate.getEvaluation)                //m
 router.post('/evaluate', evaluate.evaluate)                      //m
 router.get('/person_eval', evaluate.getPersonEvaluation)         //m
+router.post('/reEvaluate', evaluate.resetGrade)
 
 module.exports = router

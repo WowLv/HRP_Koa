@@ -140,10 +140,23 @@ var setSection = async ctx => {
     }
 }
 
+var delSectionRecord = async ctx => {
+    let { transferId } = ctx.request.body,
+        sql = `delete from section_transfer_table where transferId = ?`,
+        sqlArr = [transferId],
+        res = await query(sql, sqlArr)
+    if(res.affectedRows > 0) {
+        ctx.body = new Respond(true, 200, "删除成功")
+    }else {
+        ctx.body = new Respond(false, 200, "删除失败")
+    }
+}
+
 module.exports = {
     getEachSectionFile,
     sectionApply,
     getAllSectionApply,
     auditSectionApply,
-    setSection
+    setSection,
+    delSectionRecord
 }
